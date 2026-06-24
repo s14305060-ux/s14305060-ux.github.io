@@ -1,0 +1,1345 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>荒野亂鬥 2D 迷你版 - 生存大亂鬥</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            background-color: #0f0c1b;
+        }
+        canvas {
+            image-rendering: pixelated;
+        }
+        .brawl-font {
+            font-family: 'Impact', 'Arial Black', sans-serif;
+        }
+        .brawl-btn-pulse {
+            animation: pulse-border 1.5s infinite;
+        }
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+        }
+    </style>
+</head>
+<body class="overflow-hidden w-screen h-screen flex flex-col justify-between text-white font-sans">
+
+<!-- Chosen Palette: Retro Arcade Purple (#0f0c1b), Brawl Yellow (#f59e0b), Ruby Red (#ef4444), and Emerald Green (#10b981) for game UI. -->
+<!-- Application Structure Plan: The application is designed as a full-screen, high-performance canvas-based arcade game with responsive controls. It divides the user flow into clear states: Main Menu, Brawler Selection, Active Combat Sandbox, and Post-game Results (Victory/Defeat). The mobile layout is optimized with dual virtual joysticks and quick-access buttons to replicate the genuine tactile experience of the mobile title. -->
+<!-- Visualization & Content Choices: 1. Main Menu -> Goal: Inform -> Dynamic retro UI with background particles. 2. Brawler Select -> Goal: Compare -> Grid of brawlers showing unique weapon, health, and range stats dynamically. 3. Game Arena -> Goal: Change/Relationships -> 2D Canvas render loop with smooth particles, health bars, bushes, poison clouds, and active AI bots. 4. Game Sound -> Web Audio API synthesis for seamless, dependency-free audio. Confirming NO SVG/Mermaid used. -->
+<!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+    <div id="game-container" class="relative w-full h-full flex items-center justify-center overflow-hidden">
+        
+        <div id="screen-menu" class="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-indigo-950 via-purple-900 to-slate-900 z-20 px-4">
+            <div class="text-center mb-8 transform hover:scale-105 transition duration-300">
+                <span class="text-6xl mb-2 block">🌵</span>
+                <h1 class="text-5xl md:text-7xl font-extrabold tracking-wider text-amber-400 brawl-font drop-shadow-[0_5px_0_rgba(0,0,0,1)] uppercase">
+                    荒野亂鬥 <span class="text-white">Mini</span>
+                </h1>
+                <p class="text-amber-200 mt-2 text-sm md:text-base font-semibold tracking-widest bg-black/30 py-1 px-4 rounded-full inline-block">
+                    ⚔️ 生存大亂鬥 (SOLO SHOWDOWN) ⚔️
+                </p>
+            </div>
+
+            <div class="flex flex-col gap-4 w-full max-w-xs">
+                <button id="btn-goto-select" class="w-full bg-amber-500 hover:bg-amber-400 text-stone-900 font-extrabold text-2xl py-4 px-6 rounded-2xl border-b-8 border-amber-700 active:border-b-2 active:translate-y-1 transition-all shadow-lg brawl-btn-pulse">
+                    進入戰場
+                </button>
+                <button id="btn-toggle-sound" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-6 rounded-2xl border-b-4 border-slate-900 active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2">
+                    <span>🔊</span> <span>音效: 開</span>
+                </button>
+            </div>
+
+            <div class="absolute bottom-6 text-center text-xs text-stone-400 max-w-md bg-black/20 p-3 rounded-xl">
+                <p class="font-bold mb-1">🎮 操作指南</p>
+                <p class="hidden md:block">移動: WASD / 方向鍵 | 攻擊: 滑鼠瞄準並點擊左鍵 | 終極大招 (Super): 空白鍵</p>
+                <p class="md:hidden">觸控移動左下搖桿，拖曳右下搖桿瞄準並放開射擊。點擊黃色大招按鈕發動大招！</p>
+            </div>
+        </div>
+
+        <div id="screen-select" class="absolute inset-0 hidden flex-col items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 z-20 px-4 overflow-y-auto py-8">
+            <h2 class="text-4xl font-extrabold text-amber-400 mb-8 brawl-font drop-shadow-[0_3px_0_rgba(0,0,0,0.8)]">選擇你的英雄</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl mb-8">
+                <div class="brawler-card bg-slate-800/80 hover:bg-slate-800 border-4 border-slate-700 hover:border-amber-400 rounded-3xl p-6 flex flex-col items-center text-center cursor-pointer transition-all transform hover:-translate-y-2 relative overflow-hidden" data-id="shelly">
+                    <div class="absolute top-2 right-2 bg-purple-600 px-3 py-1 rounded-full text-xs font-bold">戰士</div>
+                    <span class="text-6xl mb-4">👩‍🎤</span>
+                    <h3 class="text-2xl font-bold text-white mb-2">雪莉 (Shelly)</h3>
+                    <p class="text-stone-300 text-sm mb-4">手持散彈槍的元老級戰士。近戰殺傷力極大，大招能推開並粉碎敵人。</p>
+                    <div class="w-full bg-slate-900/50 p-3 rounded-xl text-left text-xs space-y-1 font-mono">
+                        <div class="flex justify-between"><span>❤️ 生命值:</span><span class="text-emerald-400 font-bold">★★★★☆</span></div>
+                        <div class="flex justify-between"><span>⚔️ 攻擊力:</span><span class="text-red-400 font-bold">★★★☆☆</span></div>
+                        <div class="flex justify-between"><span>🏹 射程:</span><span class="text-sky-400 font-bold">★★☆☆☆</span></div>
+                    </div>
+                </div>
+
+                <div class="brawler-card bg-slate-800/80 hover:bg-slate-800 border-4 border-slate-700 hover:border-amber-400 rounded-3xl p-6 flex flex-col items-center text-center cursor-pointer transition-all transform hover:-translate-y-2 relative overflow-hidden" data-id="colt">
+                    <div class="absolute top-2 right-2 bg-sky-600 px-3 py-1 rounded-full text-xs font-bold">神射手</div>
+                    <span class="text-6xl mb-4">🤠</span>
+                    <h3 class="text-2xl font-bold text-white mb-2">柯爾特 (Colt)</h3>
+                    <p class="text-stone-300 text-sm mb-4">帥氣的雙槍射手。能發射一長串精準的遠程子彈，大招是全螢幕破壞暴風雨。</p>
+                    <div class="w-full bg-slate-900/50 p-3 rounded-xl text-left text-xs space-y-1 font-mono">
+                        <div class="flex justify-between"><span>❤️ 生命值:</span><span class="text-emerald-400 font-bold">★★☆☆☆</span></div>
+                        <div class="flex justify-between"><span>⚔️ 攻擊力:</span><span class="text-red-400 font-bold">★★★★☆</span></div>
+                        <div class="flex justify-between"><span>🏹 射程:</span><span class="text-sky-400 font-bold">★★★★★</span></div>
+                    </div>
+                </div>
+
+                <div class="brawler-card bg-slate-800/80 hover:bg-slate-800 border-4 border-slate-700 hover:border-amber-400 rounded-3xl p-6 flex flex-col items-center text-center cursor-pointer transition-all transform hover:-translate-y-2 relative overflow-hidden" data-id="elprimo">
+                    <div class="absolute top-2 right-2 bg-emerald-600 px-3 py-1 rounded-full text-xs font-bold">坦克</div>
+                    <span class="text-6xl mb-4">🤼‍♂️</span>
+                    <h3 class="text-2xl font-bold text-white mb-2">艾爾普里莫</h3>
+                    <p class="text-stone-300 text-sm mb-4">擁有無比威武體魄的摔角手。近身鐵拳連擊，大招能飛天落地造成大範圍重壓！</p>
+                    <div class="w-full bg-slate-900/50 p-3 rounded-xl text-left text-xs space-y-1 font-mono">
+                        <div class="flex justify-between"><span>❤️ 生命值:</span><span class="text-emerald-400 font-bold">★★★★★</span></div>
+                        <div class="flex justify-between"><span>⚔️ 攻擊力:</span><span class="text-red-400 font-bold">★★★★☆</span></div>
+                        <div class="flex justify-between"><span>🏹 射程:</span><span class="text-sky-400 font-bold">★☆☆☆☆</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex gap-4">
+                <button id="btn-select-back" class="bg-slate-700 hover:bg-slate-600 font-bold px-8 py-3 rounded-xl border-b-4 border-slate-900 active:border-b-0 active:translate-y-1 transition-all">
+                    返回
+                </button>
+            </div>
+        </div>
+
+        <div id="screen-game" class="absolute inset-0 hidden flex flex-col items-center justify-center bg-stone-950">
+            <div id="battle-hud" class="absolute top-4 left-4 right-4 z-10 flex justify-between items-center pointer-events-none">
+                <div class="bg-black/60 backdrop-blur px-4 py-2 rounded-2xl flex items-center gap-3 border border-white/10">
+                    <span class="text-2xl" id="hud-brawler-emoji">👩‍🎤</span>
+                    <div>
+                        <div class="text-xs text-amber-400 font-bold" id="hud-brawler-name">雪莉</div>
+                        <div class="flex items-center gap-1">
+                            <span class="text-xs">⭐</span>
+                            <span class="font-mono text-sm font-bold" id="hud-power-cubes">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-black/60 backdrop-blur px-5 py-2 rounded-2xl border border-white/10 text-center">
+                    <div class="text-xs text-stone-400">生存人數</div>
+                    <div class="text-2xl font-extrabold text-white font-mono" id="hud-alive-count">6</div>
+                </div>
+
+                <div class="bg-black/60 backdrop-blur px-4 py-2 rounded-2xl border border-white/10 text-right">
+                    <div class="text-xs text-rose-400 font-bold">⚠️ 毒氣區域</div>
+                    <div class="text-sm font-mono font-bold text-white" id="hud-poison-status">安全</div>
+                </div>
+            </div>
+
+            <canvas id="gameCanvas" class="w-full h-full block"></canvas>
+
+            <div id="mobile-controls" class="absolute inset-x-0 bottom-0 top-0 pointer-events-none z-10 hidden">
+                <div id="move-joystick-area" class="absolute left-12 bottom-12 w-32 h-32 rounded-full bg-black/20 border-2 border-white/10 flex items-center justify-center pointer-events-auto">
+                    <div id="move-joystick-knob" class="w-12 h-12 rounded-full bg-white/40 shadow-lg transform transition-transform duration-75"></div>
+                </div>
+
+                <div id="shoot-joystick-area" class="absolute right-36 bottom-12 w-32 h-32 rounded-full bg-black/20 border-2 border-white/10 flex items-center justify-center pointer-events-auto">
+                    <div id="shoot-joystick-knob" class="w-12 h-12 rounded-full bg-red-500/40 shadow-lg transform transition-transform duration-75"></div>
+                </div>
+
+                <button id="btn-super-touch" class="absolute right-12 bottom-28 w-16 h-16 rounded-full bg-amber-500 hover:bg-amber-400 border-4 border-amber-300 text-stone-900 font-bold flex items-center justify-center text-xs shadow-xl active:scale-95 transition-all pointer-events-auto">
+                    SUPER
+                </button>
+            </div>
+            
+            <div id="ammo-hud" class="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10 flex gap-2 pointer-events-none">
+                <div class="ammo-bar w-12 h-2.5 bg-sky-400 border border-slate-900 rounded-full transition-all duration-100"></div>
+                <div class="ammo-bar w-12 h-2.5 bg-sky-400 border border-slate-900 rounded-full transition-all duration-100"></div>
+                <div class="ammo-bar w-12 h-2.5 bg-sky-400 border border-slate-900 rounded-full transition-all duration-100"></div>
+            </div>
+        </div>
+
+        <div id="screen-result" class="absolute inset-0 hidden flex-col items-center justify-center bg-black/90 z-30 px-4">
+            <div id="result-box" class="text-center transform scale-95 transition duration-500 p-8 rounded-3xl max-w-sm w-full border border-stone-800 bg-gradient-to-b">
+                <div id="result-emoji" class="text-8xl mb-4">🏆</div>
+                <h2 id="result-title" class="text-5xl font-extrabold mb-2 brawl-font drop-shadow-md">🎉 獲得勝利 🎉</h2>
+                <p id="result-subtitle" class="text-amber-200 font-semibold mb-6">你是荒野中最強的鬥士！</p>
+                
+                <div class="bg-black/40 p-4 rounded-2xl mb-6 font-mono space-y-2">
+                    <div class="flex justify-between"><span>使用英雄:</span> <span id="res-end-char" class="font-bold text-amber-400">-</span></div>
+                    <div class="flex justify-between"><span>最終排名:</span> <span id="res-end-rank" class="font-bold text-emerald-400">-</span></div>
+                    <div class="flex justify-between"><span>能量塊數量:</span> <span id="res-end-cubes" class="font-bold text-sky-400">-</span></div>
+                    <div class="flex justify-between"><span>擊殺數:</span> <span id="res-end-kills" class="font-bold text-rose-400">-</span></div>
+                </div>
+
+                <button id="btn-result-back" class="w-full bg-amber-500 hover:bg-amber-400 text-stone-900 font-extrabold text-xl py-3 px-6 rounded-xl border-b-4 border-amber-700 active:border-b-0 active:translate-y-1 transition-all shadow-lg">
+                    回到主畫面
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let soundEnabled = true;
+
+        function playSound(type) {
+            if (!soundEnabled) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                const now = audioCtx.currentTime;
+
+                if (type === 'shoot') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(800, now);
+                    osc.frequency.exponentialRampToValueAtTime(100, now + 0.15);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+                    osc.start(now);
+                    osc.stop(now + 0.15);
+                } else if (type === 'super') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(100, now);
+                    osc.frequency.linearRampToValueAtTime(1200, now + 0.4);
+                    gain.gain.setValueAtTime(0.25, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
+                    osc.start(now);
+                    osc.stop(now + 0.4);
+                } else if (type === 'hit') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(120, now);
+                    osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.1);
+                    osc.start(now);
+                    osc.stop(now + 0.1);
+                } else if (type === 'box_break') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(180, now);
+                    osc.frequency.exponentialRampToValueAtTime(20, now + 0.25);
+                    gain.gain.setValueAtTime(0.25, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+                    osc.start(now);
+                    osc.stop(now + 0.25);
+                } else if (type === 'kill') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(600, now);
+                    osc.frequency.linearRampToValueAtTime(900, now + 0.15);
+                    osc.frequency.linearRampToValueAtTime(1200, now + 0.3);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                } else if (type === 'powerup') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(300, now);
+                    osc.frequency.exponentialRampToValueAtTime(1200, now + 0.3);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                } else if (type === 'victory') {
+                    osc.type = 'triangle';
+                    const notes = [523, 659, 784, 1046];
+                    notes.forEach((freq, idx) => {
+                        const noteOsc = audioCtx.createOscillator();
+                        const noteGain = audioCtx.createGain();
+                        noteOsc.connect(noteGain);
+                        noteGain.connect(audioCtx.destination);
+                        noteOsc.frequency.setValueAtTime(freq, now + idx * 0.12);
+                        noteGain.gain.setValueAtTime(0.15, now + idx * 0.12);
+                        noteGain.gain.linearRampToValueAtTime(0.01, now + idx * 0.12 + 0.25);
+                        noteOsc.start(now + idx * 0.12);
+                        noteOsc.stop(now + idx * 0.12 + 0.25);
+                    });
+                } else if (type === 'defeat') {
+                    osc.type = 'triangle';
+                    const notes = [392, 349, 311, 261];
+                    notes.forEach((freq, idx) => {
+                        const noteOsc = audioCtx.createOscillator();
+                        const noteGain = audioCtx.createGain();
+                        noteOsc.connect(noteGain);
+                        noteGain.connect(audioCtx.destination);
+                        noteOsc.frequency.setValueAtTime(freq, now + idx * 0.15);
+                        noteGain.gain.setValueAtTime(0.15, now + idx * 0.15);
+                        noteGain.gain.linearRampToValueAtTime(0.01, now + idx * 0.15 + 0.3);
+                        noteOsc.start(now + idx * 0.15);
+                        noteOsc.stop(now + idx * 0.15 + 0.3);
+                    });
+                }
+            } catch (e) {}
+        }
+
+        const btnGotoSelect = document.getElementById('btn-goto-select');
+        const btnToggleSound = document.getElementById('btn-toggle-sound');
+        const screenMenu = document.getElementById('screen-menu');
+        const screenSelect = document.getElementById('screen-select');
+        const screenGame = document.getElementById('screen-game');
+        const screenResult = document.getElementById('screen-result');
+        const brawlerCards = document.querySelectorAll('.brawler-card');
+        const btnSelectBack = document.getElementById('btn-select-back');
+        const btnResultBack = document.getElementById('btn-result-back');
+        const gameCanvas = document.getElementById('gameCanvas');
+        const ctx = gameCanvas.getContext('2d');
+
+        btnToggleSound.addEventListener('click', () => {
+            soundEnabled = !soundEnabled;
+            if (soundEnabled && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            btnToggleSound.querySelector('span:last-child').textContent = `音效: ${soundEnabled ? '開' : '關'}`;
+            btnToggleSound.querySelector('span:first-child').textContent = soundEnabled ? '🔊' : '🔇';
+        });
+
+        btnGotoSelect.addEventListener('click', () => {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            screenMenu.classList.add('hidden');
+            screenSelect.classList.remove('hidden');
+        });
+
+        btnSelectBack.addEventListener('click', () => {
+            screenSelect.classList.add('hidden');
+            screenMenu.classList.remove('hidden');
+        });
+
+        brawlerCards.forEach(card => {
+            card.addEventListener('click', () => {
+                const brawlerId = card.dataset.id;
+                startGame(brawlerId);
+            });
+        });
+
+        btnResultBack.addEventListener('click', () => {
+            screenResult.classList.add('hidden');
+            screenMenu.classList.remove('hidden');
+        });
+
+        const BRAWLER_TEMPLATES = {
+            shelly: {
+                name: '雪莉',
+                emoji: '👩‍🎤',
+                maxHp: 3800,
+                speed: 3.5,
+                ammoMax: 3,
+                reloadTime: 1200,
+                superCost: 6,
+                shotgun: true,
+                range: 160,
+                bulletCount: 4,
+                damage: 420
+            },
+            colt: {
+                name: '柯爾特',
+                emoji: '🤠',
+                maxHp: 2800,
+                speed: 3.8,
+                ammoMax: 3,
+                reloadTime: 1400,
+                superCost: 8,
+                shotgun: false,
+                range: 260,
+                bulletCount: 6,
+                damage: 320
+            },
+            elprimo: {
+                name: '艾爾普里莫',
+                emoji: '🤼‍♂️',
+                maxHp: 5800,
+                speed: 4.0,
+                ammoMax: 3,
+                reloadTime: 900,
+                superCost: 5,
+                shotgun: false,
+                fist: true,
+                range: 85,
+                bulletCount: 3,
+                damage: 480
+            }
+        };
+
+        const BOT_NAMES = ['里昂 🦎', '鴉 🦅', '仙人掌 🌵', '波克 💀', '公牛 🐂', '妮塔 🐻'];
+        const BOT_EMOJIS = ['🦎', '🦅', '🌵', '💀', '🐂', '🐻'];
+        const BOT_TEMPLATES = ['shelly', 'colt', 'elprimo'];
+
+        let gameActive = false;
+        let player = null;
+        let bots = [];
+        let bullets = [];
+        let particles = [];
+        let powerCubes = [];
+        let boxes = [];
+        let bushes = [];
+        let walls = [];
+        let aliveCount = 6;
+        let killsCount = 0;
+        let mapSize = 1600;
+        let poisonRadius = 800;
+        let poisonGrowthRate = 0.25;
+        let poisonDmgTimer = 0;
+
+        const keys = {};
+        window.addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; if(e.key === ' ') e.preventDefault(); });
+        window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+        let isTouchDevice = false;
+        const mobileControls = document.getElementById('mobile-controls');
+        
+        let moveTouchId = null;
+        let shootTouchId = null;
+        let moveJoyStart = {x: 0, y: 0};
+        let moveJoyCurrent = {x: 0, y: 0};
+        let shootJoyStart = {x: 0, y: 0};
+        let shootJoyCurrent = {x: 0, y: 0};
+        
+        const moveJoyKnob = document.getElementById('move-joystick-knob');
+        const shootJoyKnob = document.getElementById('shoot-joystick-knob');
+        const moveJoyArea = document.getElementById('move-joystick-area');
+        const shootJoyArea = document.getElementById('shoot-joystick-area');
+        const btnSuperTouch = document.getElementById('btn-super-touch');
+
+        window.addEventListener('touchstart', e => {
+            isTouchDevice = true;
+            mobileControls.classList.remove('hidden');
+        }, {once: true});
+
+        moveJoyArea.addEventListener('touchstart', e => {
+            const touch = e.targetTouches[0];
+            moveTouchId = touch.identifier;
+            const rect = moveJoyArea.getBoundingClientRect();
+            moveJoyStart = { x: rect.left + rect.width/2, y: rect.top + rect.height/2 };
+        });
+
+        moveJoyArea.addEventListener('touchmove', e => {
+            for (let i = 0; i < e.touches.length; i++) {
+                if (e.touches[i].identifier === moveTouchId) {
+                    const t = e.touches[i];
+                    let dx = t.clientX - moveJoyStart.x;
+                    let dy = t.clientY - moveJoyStart.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist > 40) {
+                        dx = (dx / dist) * 40;
+                        dy = (dy / dist) * 40;
+                    }
+                    moveJoyCurrent = { x: dx, y: dy };
+                    moveJoyKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+                }
+            }
+        });
+
+        const endMoveTouch = () => {
+            moveTouchId = null;
+            moveJoyCurrent = {x: 0, y: 0};
+            moveJoyKnob.style.transform = `translate(0px, 0px)`;
+        };
+        moveJoyArea.addEventListener('touchend', endMoveTouch);
+        moveJoyArea.addEventListener('touchcancel', endMoveTouch);
+
+        shootJoyArea.addEventListener('touchstart', e => {
+            const touch = e.targetTouches[0];
+            shootTouchId = touch.identifier;
+            const rect = shootJoyArea.getBoundingClientRect();
+            shootJoyStart = { x: rect.left + rect.width/2, y: rect.top + rect.height/2 };
+        });
+
+        shootJoyArea.addEventListener('touchmove', e => {
+            for (let i = 0; i < e.touches.length; i++) {
+                if (e.touches[i].identifier === shootTouchId) {
+                    const t = e.touches[i];
+                    let dx = t.clientX - shootJoyStart.x;
+                    let dy = t.clientY - shootJoyStart.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist > 40) {
+                        dx = (dx / dist) * 40;
+                        dy = (dy / dist) * 40;
+                    }
+                    shootJoyCurrent = { x: dx, y: dy };
+                    shootJoyKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+                }
+            }
+        });
+
+        const endShootTouch = () => {
+            if (shootTouchId !== null) {
+                const dx = shootJoyCurrent.x;
+                const dy = shootJoyCurrent.y;
+                if (Math.sqrt(dx*dx + dy*dy) > 10) {
+                    const angle = Math.atan2(dy, dx);
+                    fireBullet(player, angle);
+                } else {
+                    autoAim(player);
+                }
+            }
+            shootTouchId = null;
+            shootJoyCurrent = {x: 0, y: 0};
+            shootJoyKnob.style.transform = `translate(0px, 0px)`;
+        };
+        shootJoyArea.addEventListener('touchend', endShootTouch);
+        shootJoyArea.addEventListener('touchcancel', endShootTouch);
+
+        btnSuperTouch.addEventListener('touchstart', e => {
+            if (player && player.superCharged) {
+                activateSuper(player);
+            }
+        });
+
+        let mouseX = 0, mouseY = 0;
+        window.addEventListener('mousemove', e => {
+            const rect = gameCanvas.getBoundingClientRect();
+            mouseX = e.clientX - rect.left;
+            mouseY = e.clientY - rect.top;
+        });
+
+        window.addEventListener('mousedown', e => {
+            if (!gameActive || isTouchDevice) return;
+            if (e.button === 0) {
+                const dx = mouseX - gameCanvas.width/2;
+                const dy = mouseY - gameCanvas.height/2;
+                const angle = Math.atan2(dy, dx);
+                fireBullet(player, angle);
+            }
+        });
+
+        function autoAim(unit) {
+            let target = null;
+            let minDist = 300;
+            const pool = (unit === player) ? bots : [player, ...bots].filter(b => b !== unit);
+            
+            pool.forEach(e => {
+                if (e.hp <= 0 || e.isInBush && !unit.isInBush) return;
+                const dist = Math.hypot(e.x - unit.x, e.y - unit.y);
+                if (dist < minDist) {
+                    minDist = dist;
+                    target = e;
+                }
+            });
+
+            if (target) {
+                const angle = Math.atan2(target.y - unit.y, target.x - unit.x);
+                fireBullet(unit, angle);
+            } else {
+                fireBullet(unit, unit.angle);
+            }
+        }
+
+        function createParticles(x, y, color, count, customVel = 1) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 6 * customVel,
+                    vy: (Math.random() - 0.5) * 6 * customVel,
+                    radius: Math.random() * 4 + 2,
+                    color: color,
+                    alpha: 1,
+                    decay: Math.random() * 0.03 + 0.02
+                });
+            }
+        }
+
+        function spawnPowerCube(x, y) {
+            powerCubes.push({ x: x, y: y, radius: 12 });
+        }
+
+        function createWall(x, y, w, h) {
+            walls.push({ x: x, y: y, w: w, h: h });
+        }
+
+        function createBush(x, y, w, h) {
+            bushes.push({ x: x, y: y, w: w, h: h });
+        }
+
+        function initMap() {
+            walls = [];
+            bushes = [];
+            powerCubes = [];
+            boxes = [];
+
+            createWall(-mapSize/2, -mapSize/2 - 20, mapSize + 40, 20);
+            createWall(-mapSize/2, mapSize/2, mapSize + 40, 20);
+            createWall(-mapSize/2 - 20, -mapSize/2, 20, mapSize + 40);
+            createWall(mapSize/2, -mapSize/2, 20, mapSize + 40);
+
+            for (let i = 0; i < 15; i++) {
+                const bx = (Math.random() - 0.5) * (mapSize - 400);
+                const by = (Math.random() - 0.5) * (mapSize - 400);
+                createBush(bx, by, 180, 180);
+            }
+
+            for (let i = 0; i < 12; i++) {
+                const wx = Math.round(((Math.random() - 0.5) * (mapSize - 400)) / 80) * 80;
+                const wy = Math.round(((Math.random() - 0.5) * (mapSize - 400)) / 80) * 80;
+                createWall(wx, wy, 80, 80);
+            }
+
+            for (let i = 0; i < 10; i++) {
+                let bx = (Math.random() - 0.5) * (mapSize - 300);
+                let by = (Math.random() - 0.5) * (mapSize - 300);
+                boxes.push({ x: bx, y: by, hp: 3000, maxHp: 3000 });
+            }
+        }
+
+        function startGame(brawlerId) {
+            screenSelect.classList.add('hidden');
+            screenGame.classList.remove('hidden');
+
+            gameActive = true;
+            poisonRadius = mapSize / 2;
+            aliveCount = 6;
+            killsCount = 0;
+            bullets = [];
+            particles = [];
+            
+            initMap();
+
+            const pTemplate = BRAWLER_TEMPLATES[brawlerId];
+            player = {
+                id: 'player',
+                isBot: false,
+                name: '你',
+                emoji: pTemplate.emoji,
+                template: brawlerId,
+                x: 0,
+                y: 400,
+                angle: -Math.PI/2,
+                hp: pTemplate.maxHp,
+                maxHp: pTemplate.maxHp,
+                speed: pTemplate.speed,
+                ammo: pTemplate.ammoMax,
+                ammoMax: pTemplate.ammoMax,
+                reloadTimer: 0,
+                reloadTime: pTemplate.reloadTime,
+                superCharged: false,
+                superHitsNeeded: pTemplate.superCost,
+                superHits: 0,
+                powerCubes: 0,
+                damageBoost: 1,
+                hpBoost: 0,
+                isInBush: false,
+                damageFlash: 0,
+                shotgun: pTemplate.shotgun,
+                range: pTemplate.range,
+                damage: pTemplate.damage,
+                fist: pTemplate.fist || false
+            };
+
+            bots = [];
+            for (let i = 0; i < 5; i++) {
+                const bType = BOT_TEMPLATES[Math.floor(Math.random() * BOT_TEMPLATES.length)];
+                const bTemplate = BRAWLER_TEMPLATES[bType];
+                
+                const angleSpawn = (i / 5) * Math.PI * 2;
+                const spawnRadius = 500 + Math.random() * 200;
+
+                bots.push({
+                    id: 'bot_' + i,
+                    isBot: true,
+                    name: BOT_NAMES[i % BOT_NAMES.length],
+                    emoji: BOT_EMOJIS[i % BOT_EMOJIS.length],
+                    template: bType,
+                    x: Math.cos(angleSpawn) * spawnRadius,
+                    y: Math.sin(angleSpawn) * spawnRadius,
+                    angle: Math.random() * Math.PI * 2,
+                    hp: bTemplate.maxHp,
+                    maxHp: bTemplate.maxHp,
+                    speed: bTemplate.speed - 0.5,
+                    ammo: bTemplate.ammoMax,
+                    ammoMax: bTemplate.ammoMax,
+                    reloadTimer: 0,
+                    reloadTime: bTemplate.reloadTime,
+                    superCharged: false,
+                    superHitsNeeded: bTemplate.superCost,
+                    superHits: 0,
+                    powerCubes: 0,
+                    damageBoost: 1,
+                    hpBoost: 0,
+                    isInBush: false,
+                    damageFlash: 0,
+                    shotgun: bTemplate.shotgun,
+                    range: bTemplate.range,
+                    damage: bTemplate.damage,
+                    fist: bTemplate.fist || false,
+                    aiState: 'wander',
+                    aiTimer: 0,
+                    aiTarget: null
+                });
+            }
+
+            resizeCanvas();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function resizeCanvas() {
+            gameCanvas.width = window.innerWidth;
+            gameCanvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        function fireBullet(unit, angle, isSuper = false) {
+            if (unit.ammo <= 0 && !isSuper) return;
+
+            if (!isSuper) {
+                unit.ammo--;
+                unit.reloadTimer = unit.reloadTime;
+            }
+
+            unit.angle = angle;
+            playSound(isSuper ? 'super' : 'shoot');
+
+            const speed = 12;
+            const bTemplate = BRAWLER_TEMPLATES[unit.template];
+            const dmg = Math.round(unit.damage * unit.damageBoost * (isSuper ? 1.4 : 1.0));
+
+            if (unit.shotgun) {
+                const spread = isSuper ? 6 : 4;
+                const bulletsCount = isSuper ? 10 : 6;
+                for (let i = 0; i < bulletsCount; i++) {
+                    const dev = (i - (bulletsCount-1)/2) * (isSuper ? 0.08 : 0.06);
+                    bullets.push({
+                        owner: unit.id,
+                        x: unit.x + Math.cos(angle) * 15,
+                        y: unit.y + Math.sin(angle) * 15,
+                        vx: Math.cos(angle + dev) * (speed + (Math.random() - 0.5) * 2),
+                        vy: Math.sin(angle + dev) * (speed + (Math.random() - 0.5) * 2),
+                        damage: dmg,
+                        range: isSuper ? 240 : unit.range,
+                        travelled: 0,
+                        isSuper: isSuper,
+                        radius: isSuper ? 12 : 6,
+                        color: isSuper ? '#f59e0b' : (unit.id === 'player' ? '#38bdf8' : '#ef4444')
+                    });
+                }
+            } else if (unit.fist) {
+                const count = isSuper ? 6 : 3;
+                for (let i = 0; i < count; i++) {
+                    const delay = i * 80;
+                    setTimeout(() => {
+                        if (!gameActive || unit.hp <= 0) return;
+                        bullets.push({
+                            owner: unit.id,
+                            x: unit.x + Math.cos(unit.angle) * 10,
+                            y: unit.y + Math.sin(unit.angle) * 10,
+                            vx: Math.cos(unit.angle) * 9,
+                            vy: Math.sin(unit.angle) * 9,
+                            damage: dmg,
+                            range: isSuper ? 150 : unit.range,
+                            travelled: 0,
+                            isSuper: isSuper,
+                            radius: isSuper ? 25 : 16,
+                            color: isSuper ? 'rgba(245, 158, 11, 0.6)' : 'rgba(255,255,255,0.4)',
+                            isFist: true
+                        });
+                    }, delay);
+                }
+            } else {
+                if (isSuper) {
+                    const bCount = 12;
+                    for (let i = 0; i < bCount; i++) {
+                        const delay = i * 60;
+                        setTimeout(() => {
+                            if (!gameActive || unit.hp <= 0) return;
+                            const dev = (Math.random() - 0.5) * 0.05;
+                            bullets.push({
+                                owner: unit.id,
+                                x: unit.x + Math.cos(unit.angle) * 15,
+                                y: unit.y + Math.sin(unit.angle) * 15,
+                                vx: Math.cos(unit.angle + dev) * (speed + 4),
+                                vy: Math.sin(unit.angle + dev) * (speed + 4),
+                                damage: dmg,
+                                range: unit.range + 80,
+                                travelled: 0,
+                                isSuper: true,
+                                radius: 10,
+                                color: '#f59e0b'
+                            });
+                        }, delay);
+                    }
+                } else {
+                    const bCount = 4;
+                    for (let i = 0; i < bCount; i++) {
+                        const delay = i * 100;
+                        setTimeout(() => {
+                            if (!gameActive || unit.hp <= 0) return;
+                            bullets.push({
+                                owner: unit.id,
+                                x: unit.x + Math.cos(unit.angle) * 15,
+                                y: unit.y + Math.sin(unit.angle) * 15,
+                                vx: Math.cos(unit.angle) * speed,
+                                vy: Math.sin(unit.angle) * speed,
+                                damage: dmg,
+                                range: unit.range,
+                                travelled: 0,
+                                isSuper: false,
+                                radius: 5,
+                                color: unit.id === 'player' ? '#38bdf8' : '#ef4444'
+                            });
+                        }, delay);
+                    }
+                }
+            }
+        }
+
+        function activateSuper(unit) {
+            if (!unit.superCharged) return;
+            unit.superCharged = false;
+            unit.superHits = 0;
+            fireBullet(unit, unit.angle, true);
+        }
+
+        function handlePoisonZone() {
+            poisonRadius -= poisonGrowthRate;
+            if (poisonRadius < 50) poisonRadius = 50;
+
+            poisonDmgTimer++;
+            if (poisonDmgTimer >= 60) {
+                poisonDmgTimer = 0;
+                applyPoisonDmg(player);
+                bots.forEach(bot => applyPoisonDmg(bot));
+            }
+        }
+
+        function applyPoisonDmg(unit) {
+            if (unit.hp <= 0) return;
+            const dist = Math.hypot(unit.x, unit.y);
+            if (dist > poisonRadius) {
+                unit.hp -= 1000;
+                unit.damageFlash = 8;
+                playSound('hit');
+                createParticles(unit.x, unit.y, '#10b981', 10);
+                checkDefeat(unit);
+            }
+        }
+
+        function checkDefeat(unit) {
+            if (unit.hp <= 0) {
+                unit.hp = 0;
+                playSound('kill');
+                createParticles(unit.x, unit.y, '#ef4444', 30, 1.5);
+                
+                for (let i = 0; i < unit.powerCubes + 1; i++) {
+                    spawnPowerCube(unit.x + (Math.random() - 0.5) * 40, unit.y + (Math.random() - 0.5) * 40);
+                }
+
+                if (unit.id === 'player') {
+                    endGame(false);
+                } else {
+                    bots = bots.filter(b => b.id !== unit.id);
+                    aliveCount = bots.length + 1;
+                    killsCount++;
+                    document.getElementById('hud-alive-count').textContent = aliveCount;
+                    if (bots.length === 0) {
+                        endGame(true);
+                    }
+                }
+            }
+        }
+
+        function endGame(victory) {
+            gameActive = false;
+            screenGame.classList.add('hidden');
+            screenResult.classList.remove('hidden');
+
+            const resBox = document.getElementById('result-box');
+            const resEmoji = document.getElementById('result-emoji');
+            const resTitle = document.getElementById('result-title');
+            const resSubtitle = document.getElementById('result-subtitle');
+
+            if (victory) {
+                playSound('victory');
+                resBox.className = "text-center p-8 rounded-3xl max-w-sm w-full border border-amber-500/30 bg-gradient-to-b from-amber-950 via-slate-900 to-black";
+                resEmoji.textContent = "🏆";
+                resTitle.textContent = "🎉 獲得勝利 🎉";
+                resTitle.className = "text-5xl font-extrabold mb-2 brawl-font drop-shadow-md text-amber-400";
+                resSubtitle.textContent = "你是荒野中最強的鬥士！";
+            } else {
+                playSound('defeat');
+                resBox.className = "text-center p-8 rounded-3xl max-w-sm w-full border border-rose-500/30 bg-gradient-to-b from-rose-950/40 via-slate-900 to-black";
+                resEmoji.textContent = "💀";
+                resTitle.textContent = "🔥 戰敗 🔥";
+                resTitle.className = "text-5xl font-extrabold mb-2 brawl-font drop-shadow-md text-rose-500";
+                resSubtitle.textContent = "勝敗乃兵家常事，再接再厲！";
+            }
+
+            document.getElementById('res-end-char').textContent = BRAWLER_TEMPLATES[player.template].name;
+            document.getElementById('res-end-rank').textContent = `第 ${aliveCount} 名`;
+            document.getElementById('res-end-cubes').textContent = `${player.powerCubes} 個`;
+            document.getElementById('res-end-kills').textContent = `${killsCount} 次`;
+        }
+
+        function updateUnits() {
+            let px = 0;
+            let py = 0;
+
+            if (isTouchDevice) {
+                const dist = Math.sqrt(moveJoyCurrent.x*moveJoyCurrent.x + moveJoyCurrent.y*moveJoyCurrent.y);
+                if (dist > 5) {
+                    px = (moveJoyCurrent.x / dist) * player.speed;
+                    py = (moveJoyCurrent.y / dist) * player.speed;
+                    player.angle = Math.atan2(moveJoyCurrent.y, moveJoyCurrent.x);
+                }
+            } else {
+                if (keys['w'] || keys['arrowup']) py = -player.speed;
+                if (keys['s'] || keys['arrowdown']) py = player.speed;
+                if (keys['a'] || keys['arrowleft']) px = -player.speed;
+                if (keys['d'] || keys['arrowright']) px = player.speed;
+
+                if (px !== 0 && py !== 0) {
+                    px *= 0.7071;
+                    py *= 0.7071;
+                }
+
+                if (px !== 0 || py !== 0) {
+                    player.angle = Math.atan2(py, px);
+                }
+            }
+
+            moveUnit(player, px, py);
+
+            if (keys[' '] && player.superCharged) {
+                activateSuper(player);
+            }
+
+            if (player.reloadTimer > 0) {
+                player.reloadTimer -= 16.67;
+            } else if (player.ammo < player.ammoMax) {
+                player.ammo++;
+                if (player.ammo < player.ammoMax) player.reloadTimer = player.reloadTime;
+            }
+
+            bots.forEach(bot => {
+                runBotAI(bot);
+                
+                if (bot.reloadTimer > 0) {
+                    bot.reloadTimer -= 16.67;
+                } else if (bot.ammo < bot.ammoMax) {
+                    bot.ammo++;
+                    if (bot.ammo < bot.ammoMax) bot.reloadTimer = bot.reloadTime;
+                }
+            });
+
+            checkBushHiding(player);
+            bots.forEach(bot => checkBushHiding(bot));
+        }
+
+        function moveUnit(unit, dx, dy) {
+            let nextX = unit.x + dx;
+            let nextY = unit.y + dy;
+
+            let colWallX = false;
+            let colWallY = false;
+
+            walls.forEach(w => {
+                if (nextX + 16 > w.x && nextX - 16 < w.x + w.w && unit.y + 16 > w.y && unit.y - 16 < w.y + w.h) {
+                    colWallX = true;
+                }
+                if (unit.x + 16 > w.x && unit.x - 16 < w.x + w.w && nextY + 16 > w.y && nextY - 16 < w.y + w.h) {
+                    colWallY = true;
+                }
+            });
+
+            if (!colWallX) unit.x = nextX;
+            if (!colWallY) unit.y = nextY;
+
+            const mapBound = mapSize / 2;
+            if (unit.x < -mapBound) unit.x = -mapBound;
+            if (unit.x > mapBound) unit.x = mapBound;
+            if (unit.y < -mapBound) unit.y = -mapBound;
+            if (unit.y > mapBound) unit.y = mapBound;
+        }
+
+        function checkBushHiding(unit) {
+            let inBush = false;
+            bushes.forEach(b => {
+                if (unit.x > b.x && unit.x < b.x + b.w && unit.y > b.y && unit.y < b.y + b.h) {
+                    inBush = true;
+                }
+            });
+            unit.isInBush = inBush;
+        }
+
+        function runBotAI(bot) {
+            bot.aiTimer--;
+
+            let target = null;
+            let closestDist = 450;
+            const targets = [player, ...bots].filter(b => b.id !== bot.id && b.hp > 0);
+
+            targets.forEach(t => {
+                if (t.isInBush && !bot.isInBush) return;
+                const dist = Math.hypot(t.x - bot.x, t.y - bot.y);
+                if (dist < closestDist) {
+                    closestDist = dist;
+                    target = t;
+                }
+            });
+
+            if (target) {
+                bot.aiState = 'attack';
+                bot.aiTarget = target;
+            } else if (bot.aiTimer <= 0) {
+                bot.aiState = Math.random() < 0.6 ? 'wander' : 'hunt_box';
+                bot.aiTimer = 60 + Math.random() * 120;
+                bot.aiTarget = null;
+            }
+
+            if (bot.aiState === 'attack' && bot.aiTarget) {
+                const angle = Math.atan2(bot.aiTarget.y - bot.y, bot.aiTarget.x - bot.x);
+                bot.angle = angle;
+
+                if (closestDist > bot.range * 0.7) {
+                    moveUnit(bot, Math.cos(angle) * bot.speed, Math.sin(angle) * bot.speed);
+                } else if (closestDist < bot.range * 0.4) {
+                    moveUnit(bot, -Math.cos(angle) * bot.speed, -Math.sin(angle) * bot.speed);
+                }
+
+                if (bot.ammo > 0 && Math.random() < 0.05) {
+                    if (bot.superCharged) {
+                        bot.superCharged = false;
+                        bot.superHits = 0;
+                        fireBullet(bot, angle, true);
+                    } else {
+                        fireBullet(bot, angle);
+                    }
+                }
+            } else if (bot.aiState === 'hunt_box') {
+                let closestBox = null;
+                let boxDist = 500;
+                boxes.forEach(b => {
+                    const d = Math.hypot(b.x - bot.x, b.y - bot.y);
+                    if (d < boxDist) {
+                        boxDist = d;
+                        closestBox = b;
+                    }
+                });
+
+                if (closestBox) {
+                    const angle = Math.atan2(closestBox.y - bot.y, closestBox.x - bot.x);
+                    bot.angle = angle;
+                    moveUnit(bot, Math.cos(angle) * bot.speed, Math.sin(angle) * bot.speed);
+
+                    if (boxDist < bot.range && bot.ammo > 0 && Math.random() < 0.08) {
+                        fireBullet(bot, angle);
+                    }
+                } else {
+                    bot.aiState = 'wander';
+                }
+            } else {
+                if (bot.aiTimer % 30 === 0) {
+                    bot.angle = Math.random() * Math.PI * 2;
+                }
+                moveUnit(bot, Math.cos(bot.angle) * bot.speed * 0.6, Math.sin(bot.angle) * bot.speed * 0.6);
+            }
+        }
+
+        function updateProjectiles() {
+            bullets.forEach((b, idx) => {
+                b.x += b.vx;
+                b.y += b.vy;
+                b.travelled += Math.sqrt(b.vx*b.vx + b.vy*b.vy);
+
+                let collided = false;
+
+                walls.forEach(w => {
+                    if (b.x > w.x && b.x < w.x + w.w && b.y > w.y && b.y < w.y + w.h) {
+                        collided = true;
+                    }
+                });
+
+                boxes.forEach(box => {
+                    if (collided) return;
+                    if (Math.hypot(box.x - b.x, box.y - b.y) < b.radius + 20) {
+                        collided = true;
+                        box.hp -= b.damage;
+                        playSound('hit');
+                        createParticles(box.x, box.y, '#f59e0b', 8);
+                        if (box.hp <= 0) {
+                            playSound('box_break');
+                            createParticles(box.x, box.y, '#b45309', 20, 1.2);
+                            spawnPowerCube(box.x, box.y);
+                        }
+                    }
+                });
+
+                const potentialTargets = [player, ...bots].filter(u => u.id !== b.owner && u.hp > 0);
+                potentialTargets.forEach(u => {
+                    if (collided) return;
+                    if (Math.hypot(u.x - b.x, u.y - b.y) < b.radius + 16) {
+                        collided = true;
+                        u.hp -= b.damage;
+                        u.damageFlash = 8;
+                        playSound('hit');
+                        createParticles(b.x, b.y, b.color, 8);
+
+                        const ownerUnit = [player, ...bots].find(o => o.id === b.owner);
+                        if (ownerUnit && !ownerUnit.superCharged) {
+                            ownerUnit.superHits++;
+                            if (ownerUnit.superHits >= ownerUnit.superHitsNeeded) {
+                                ownerUnit.superCharged = true;
+                            }
+                        }
+
+                        checkDefeat(u);
+                    }
+                });
+
+                if (b.travelled >= b.range) {
+                    collided = true;
+                }
+
+                if (collided) {
+                    bullets.splice(idx, 1);
+                }
+            });
+
+            boxes = boxes.filter(b => b.hp > 0);
+
+            powerCubes.forEach((cube, idx) => {
+                const checkCollect = (unit) => {
+                    if (Math.hypot(unit.x - cube.x, unit.y - cube.y) < 28) {
+                        unit.powerCubes++;
+                        unit.damageBoost += 0.12;
+                        unit.maxHp += 400;
+                        unit.hp += 400;
+                        playSound('powerup');
+                        createParticles(cube.x, cube.y, '#38bdf8', 15);
+                        powerCubes.splice(idx, 1);
+
+                        if (unit.id === 'player') {
+                            document.getElementById('hud-power-cubes').textContent = unit.powerCubes;
+                        }
+                    }
+                };
+
+                checkCollect(player);
+                bots.forEach(bot => checkCollect(bot));
+            });
+        }
+
+        function updateParticles() {
+            particles.forEach((p, idx) => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.alpha -= p.decay;
+                if (p.alpha <= 0) {
+                    particles.splice(idx, 1);
+                }
+            });
+        }
+
+        function renderHUD() {
+            const ammoBars = document.querySelectorAll('.ammo-bar');
+            for (let i = 0; i < 3; i++) {
+                if (player.ammo > i) {
+                    ammoBars[i].style.opacity = '1';
+                    ammoBars[i].style.width = '48px';
+                    ammoBars[i].style.backgroundColor = '#38bdf8';
+                } else if (player.ammo === i) {
+                    const percent = 1 - (player.reloadTimer / player.reloadTime);
+                    ammoBars[i].style.opacity = '0.6';
+                    ammoBars[i].style.width = `${percent * 48}px`;
+                    ammoBars[i].style.backgroundColor = '#64748b';
+                } else {
+                    ammoBars[i].style.opacity = '0.2';
+                    ammoBars[i].style.width = '0px';
+                }
+            }
+
+            const pEmoji = document.getElementById('hud-brawler-emoji');
+            const pName = document.getElementById('hud-brawler-name');
+            pEmoji.textContent = player.emoji;
+            pName.textContent = BRAWLER_TEMPLATES[player.template].name;
+
+            const poisonIndicator = document.getElementById('hud-poison-status');
+            const playerDist = Math.hypot(player.x, player.y);
+            if (playerDist > poisonRadius) {
+                poisonIndicator.textContent = "⚠️ 受到傷害";
+                poisonIndicator.className = "text-sm font-mono font-bold text-red-500 animate-pulse";
+            } else if (playerDist > poisonRadius - 150) {
+                poisonIndicator.textContent = "⚠️ 毒氣逼近";
+                poisonIndicator.className = "text-sm font-mono font-bold text-amber-500 animate-pulse";
+            } else {
+                poisonIndicator.textContent = "安全區域";
+                poisonIndicator.className = "text-sm font-mono font-bold text-emerald-400";
+            }
+
+            if (player.superCharged) {
+                btnSuperTouch.className = "absolute right-12 bottom-28 w-16 h-16 rounded-full bg-amber-400 border-4 border-amber-300 text-stone-900 font-extrabold flex items-center justify-center text-xs shadow-xl active:scale-95 transition-all pointer-events-auto animate-bounce brawl-btn-pulse";
+            } else {
+                btnSuperTouch.className = "absolute right-12 bottom-28 w-16 h-16 rounded-full bg-stone-700 border-4 border-stone-600 text-stone-400 font-bold flex items-center justify-center text-xs shadow-xl pointer-events-none opacity-50";
+            }
+        }
+
+        function gameLoop() {
+            if (!gameActive) return;
+
+            updateUnits();
+            updateProjectiles();
+            updateParticles();
+            handlePoisonZone();
+
+            ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+
+            const camX = player.x - gameCanvas.width / 2;
+            const camY = player.y - gameCanvas.height / 2;
+
+            ctx.save();
+            ctx.translate(-camX, -camY);
+
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(-mapSize/2, -mapSize/2, mapSize, mapSize);
+
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 4;
+            const gridSize = 80;
+            for (let x = -mapSize/2; x <= mapSize/2; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, -mapSize/2);
+                ctx.lineTo(x, mapSize/2);
+                ctx.stroke();
+            }
+            for (let y = -mapSize/2; y <= mapSize/2; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(-mapSize/2, y);
+                ctx.lineTo(mapSize/2, y);
+                ctx.stroke();
+            }
+
+            bushes.forEach(b => {
+                ctx.fillStyle = '#15803d';
+                ctx.fillRect(b.x, b.y, b.w, b.h);
+                ctx.strokeStyle = '#166534';
+                ctx.lineWidth = 4;
+                ctx.strokeRect(b.x, b.y, b.w, b.h);
+            });
+
+            powerCubes.forEach(cube => {
+                ctx.fillStyle = '#38bdf8';
+                ctx.beginPath();
+                ctx.arc(cube.x, cube.y, cube.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '10px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('⚡', cube.x, cube.y);
+            });
+
+            boxes.forEach(box => {
+                ctx.fillStyle = '#b45309';
+                ctx.fillRect(box.x - 20, box.y - 20, 40, 40);
+                ctx.strokeStyle = '#78350f';
+                ctx.lineWidth = 4;
+                ctx.strokeRect(box.x - 20, box.y - 20, 40, 40);
+
+                ctx.fillStyle = '#ef4444';
+                ctx.fillRect(box.x - 20, box.y - 28, 40, 4);
+                ctx.fillStyle = '#22c55e';
+                ctx.fillRect(box.x - 20, box.y - 28, (box.hp / box.maxHp) * 40, 4);
+            });
+
+            walls.forEach(w => {
+                ctx.fillStyle = '#78350f';
+                ctx.fillRect(w.x, w.y, w.w, w.h);
+                ctx.strokeStyle = '#451a03';
+                ctx.lineWidth = 4;
+                ctx.strokeRect(w.x, w.y, w.w, w.h);
+            });
+
+            bullets.forEach(b => {
+                ctx.fillStyle = b.color;
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            const drawUnit = (unit) => {
+                if (unit.hp <= 0) return;
+
+                if (unit.isInBush && player.isInBush === false && unit.id !== 'player') {
+                    return;
+                }
+
+                ctx.save();
+                ctx.translate(unit.x, unit.y);
+
+                if (unit.isInBush) {
+                    ctx.globalAlpha = 0.5;
+                }
+
+                ctx.save();
+                ctx.rotate(unit.angle);
+                ctx.font = '28px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(unit.emoji, 0, 0);
+                ctx.restore();
+
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                ctx.beginPath();
+                ctx.arc(0, 16, 12, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#ef4444';
+                ctx.fillRect(-24, -26, 48, 5);
+                ctx.fillStyle = unit.id === 'player' ? '#22c55e' : '#f43f5e';
+                ctx.fillRect(-24, -26, (unit.hp / unit.maxHp) * 48, 5);
+
+                if (unit.id === 'player') {
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.fillRect(-24, -32, 48, 4);
+                    const superProgress = Math.min(1, unit.superHits / unit.superHitsNeeded);
+                    ctx.fillStyle = unit.superCharged ? '#f59e0b' : '#3b82f6';
+                    ctx.fillRect(-24, -32, superProgress * 48, 4);
+                }
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 11px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.shadowColor = '#000000';
+                ctx.shadowBlur = 4;
+                const nameDisplay = `${unit.name} ⚡${unit.powerCubes}`;
+                ctx.fillText(nameDisplay, 0, -38);
+                ctx.shadowBlur = 0;
+
+                ctx.restore();
+                ctx.globalAlpha = 1.0;
+            };
+
+            bots.forEach(bot => drawUnit(bot));
+            drawUnit(player);
+
+            particles.forEach(p => {
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+
+            ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
+            ctx.lineWidth = 20;
+            ctx.beginPath();
+            ctx.arc(0, 0, poisonRadius + 10, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.fillStyle = 'rgba(16, 185, 129, 0.2)';
+            ctx.beginPath();
+            ctx.arc(0, 0, poisonRadius, 0, Math.PI * 2, true);
+            ctx.rect(-mapSize, -mapSize, mapSize*2, mapSize*2);
+            ctx.fill();
+
+            ctx.restore();
+
+            renderHUD();
+
+            requestAnimationFrame(gameLoop);
+        }
+    </script>
+</body>
+</html>
